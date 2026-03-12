@@ -29,6 +29,7 @@ function setupAutoUpdater() {
   })
 
   autoUpdater.on('update-downloaded', (info) => {
+    console.log('[AutoUpdater] Update downloaded:', info.version)
     mainWindow?.webContents.send('update-downloaded', { version: info.version })
   })
 
@@ -48,11 +49,8 @@ ipcMain.on('download-update', () => {
 
 ipcMain.on('install-update', () => {
   isQuitting = true
-  setImmediate(() => {
-    app.removeAllListeners('window-all-closed')
-    mainWindow?.destroy()
-    autoUpdater.quitAndInstall(false, true)
-  })
+  // isSilent=true: don't show installer UI; isForceRunAfter=true: relaunch after install
+  autoUpdater.quitAndInstall(true, true)
 })
 
 ipcMain.handle('get-app-version', () => {

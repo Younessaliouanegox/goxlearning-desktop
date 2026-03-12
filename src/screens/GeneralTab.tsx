@@ -34,7 +34,7 @@ export default function GeneralTab({ group, student, groups = [], searchQuery = 
   } = useChat(group?.id)
 
   const { typingUsers, startTyping, stopTyping } = useTypingIndicator(group?.id, student.id, student.name)
-  const { markAsRead, isReadByOthers } = useReadReceipts(group?.id, student.id, student.name)
+  const { markAsRead, isReadByOthers, getReadBy } = useReadReceipts(group?.id, student.id, student.name)
   const { isOnline } = usePresence(group?.id, student.id, student.name)
 
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -312,6 +312,7 @@ export default function GeneralTab({ group, student, groups = [], searchQuery = 
                 searchQuery={searchQuery}
                 showReactionPicker={reactionPickerMsgId === m.id}
                 readStatus={isMe ? (isReadByOthers(m.id, filteredMessages.map(msg => msg.id)) ? 'read' : 'sent') : undefined}
+                readByNames={isMe ? getReadBy(m.id, filteredMessages.map(msg => msg.id)) : undefined}
                 isOnline={!isMe && isOnline(m.sender_type === 'member' ? m.member_id || '' : m.student_id || '')}
                 onImageClick={(src) => setLightboxSrc(src)}
                 onContextMenu={(e) => handleContextMenu(e, m)}

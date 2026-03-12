@@ -1,6 +1,6 @@
 {
   "name": "goxlearning-desktop",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "description": "GoxLearning Student Desktop App",
   "main": "dist-electron/main.js",
   "scripts": {

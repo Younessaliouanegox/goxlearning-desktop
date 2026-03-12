@@ -56,5 +56,19 @@ export function useReadReceipts(groupId: string | undefined, userId: string, use
     })
   }, [readState, userId])
 
-  return { readState, markAsRead, isReadByOthers }
+  // Get list of names who have read up to (or past) a specific message
+  const getReadBy = useCallback((messageId: string, allMessageIds: string[]): string[] => {
+    const msgIndex = allMessageIds.indexOf(messageId)
+    if (msgIndex < 0) return []
+
+    return Object.entries(readState)
+      .filter(([uid, state]) => {
+        if (uid === userId) return false
+        const readIndex = allMessageIds.indexOf(state.lastReadMsgId)
+        return readIndex >= msgIndex
+      })
+      .map(([, state]) => state.name)
+  }, [readState, userId])
+
+  return { readState, markAsRead, isReadByOthers, getReadBy }
 }

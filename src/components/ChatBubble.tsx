@@ -23,6 +23,7 @@ interface ChatBubbleProps {
   searchQuery?: string
   showReactionPicker?: boolean
   readStatus?: 'sent' | 'read'
+  readByNames?: string[]
   isOnline?: boolean
   onContextMenu?: (e: React.MouseEvent) => void
   onReplyClick?: (replyId: string) => void
@@ -74,15 +75,28 @@ function highlightText(text: string, query: string) {
 export default function ChatBubble({
   content, time, isMe, senderName, senderRole, senderAvatarUrl, variant = 'group',
   fileUrl, fileType, pinned, reactions, replyTo, searchQuery,
-  showReactionPicker, readStatus, isOnline, onContextMenu, onReplyClick, onReaction, onImageClick,
+  showReactionPicker, readStatus, readByNames, isOnline, onContextMenu, onReplyClick, onReaction, onImageClick,
 }: ChatBubbleProps) {
   const [hovered, setHovered] = useState(false)
+  const [showSeenBy, setShowSeenBy] = useState(false)
+  const seenByRef = useRef<HTMLDivElement>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
   const [audioPlaying, setAudioPlaying] = useState(false)
   const [audioProgress, setAudioProgress] = useState(0)
   const [audioDuration, setAudioDuration] = useState(0)
   const [audioCurrentTime, setAudioCurrentTime] = useState(0)
   const [playbackRate, setPlaybackRate] = useState(1)
+
+  useEffect(() => {
+    if (!showSeenBy) return
+    const handleClick = (e: MouseEvent) => {
+      if (seenByRef.current && !seenByRef.current.contains(e.target as Node)) {
+        setShowSeenBy(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showSeenBy])
 
   const formattedTime = new Date(time).toLocaleTimeString('fr-FR', {
     hour: '2-digit',
@@ -305,9 +319,15 @@ export default function ChatBubble({
                 }}>
                   {formattedTime}
                   {isMe && readStatus && (
-                    readStatus === 'read'
-                      ? <CheckCheck size={13} style={{ marginLeft: 3, verticalAlign: 'middle', color: isMe ? 'rgba(255,255,255,.7)' : 'var(--brand)' }} />
-                      : <Check size={13} style={{ marginLeft: 3, verticalAlign: 'middle' }} />
+                    <span
+                      style={{ cursor: readStatus === 'read' ? 'pointer' : 'default', position: 'relative' as any }}
+                      onClick={(e) => { if (readStatus === 'read') { e.stopPropagation(); setShowSeenBy(prev => !prev) } }}
+                    >
+                      {readStatus === 'read'
+                        ? <CheckCheck size={13} style={{ marginLeft: 3, verticalAlign: 'middle', color: 'rgba(255,255,255,.7)' }} />
+                        : <Check size={13} style={{ marginLeft: 3, verticalAlign: 'middle' }} />
+                      }
+                    </span>
                   )}
                 </span>
               </div>
@@ -321,10 +341,29 @@ export default function ChatBubble({
               }}>
                 {formattedTime}
                 {isMe && readStatus && (
-                  readStatus === 'read'
-                    ? <CheckCheck size={13} style={{ marginLeft: 3, verticalAlign: 'middle', color: isMe ? 'rgba(255,255,255,.7)' : 'var(--brand)' }} />
-                    : <Check size={13} style={{ marginLeft: 3, verticalAlign: 'middle' }} />
+                  <span
+                    style={{ cursor: readStatus === 'read' ? 'pointer' : 'default', position: 'relative' as any }}
+                    onClick={(e) => { if (readStatus === 'read') { e.stopPropagation(); setShowSeenBy(prev => !prev) } }}
+                  >
+                    {readStatus === 'read'
+                      ? <CheckCheck size={13} style={{ marginLeft: 3, verticalAlign: 'middle', color: 'rgba(255,255,255,.7)' }} />
+                      : <Check size={13} style={{ marginLeft: 3, verticalAlign: 'middle' }} />
+                    }
+                  </span>
                 )}
+              </div>
+            )}
+
+            {/* Seen by popup */}
+            {showSeenBy && readByNames && readByNames.length > 0 && (
+              <div ref={seenByRef} style={styles.seenByPopup} onClick={(e) => e.stopPropagation()}>
+                <div style={styles.seenByTitle}>Vu par</div>
+                {readByNames.map((name, i) => (
+                  <div key={i} style={styles.seenByName}>
+                    <CheckCheck size={11} style={{ color: 'var(--brand)', flexShrink: 0 }} />
+                    {name}
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -571,5 +610,39 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'var(--bg-card)',
     cursor: 'pointer',
     fontSize: 14,
+  },
+
+  // Seen by popup
+  seenByPopup: {
+    position: 'absolute' as any,
+    bottom: '100%',
+    right: 0,
+    marginBottom: 6,
+    padding: '8px 12px',
+    borderRadius: 10,
+    background: 'var(--bg-card)',
+    border: '1px solid var(--border-light)',
+    boxShadow: '0 4px 16px rgba(0,0,0,.12)',
+    zIndex: 20,
+    minWidth: 140,
+    animation: 'ctxIn 0.15s ease',
+  },
+  seenByTitle: {
+    fontSize: 10,
+    fontWeight: 700,
+    color: 'var(--text-tertiary)',
+    letterSpacing: '0.05em',
+    marginBottom: 6,
+    textTransform: 'uppercase' as any,
+  },
+  seenByName: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    fontSize: 12,
+    fontWeight: 500,
+    color: 'var(--text-primary)',
+    padding: '3px 0',
+    whiteSpace: 'nowrap' as any,
   },
 }

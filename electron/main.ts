@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, screen, Notification, nativeImage } from 'electron'
+import { app, BrowserWindow, ipcMain, screen, Notification, nativeImage, Tray, Menu } from 'electron'
 import path from 'path'
 import { autoUpdater } from 'electron-updater'
 import AutoLaunch from 'auto-launch'
@@ -10,6 +10,8 @@ if (process.platform === 'win32') {
 }
 
 let mainWindow: BrowserWindow | null = null
+let tray: Tray | null = null
+let isQuitting = false
 
 /* ── Auto-updater config ── */
 autoUpdater.autoDownload = true
@@ -45,9 +47,10 @@ ipcMain.on('download-update', () => {
 })
 
 ipcMain.on('install-update', () => {
+  isQuitting = true
   setImmediate(() => {
     app.removeAllListeners('window-all-closed')
-    mainWindow?.close()
+    mainWindow?.destroy()
     autoUpdater.quitAndInstall(false, true)
   })
 })
@@ -125,13 +128,62 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
   }
 
+  // Windows: minimize to tray instead of quitting
+  if (process.platform === 'win32') {
+    mainWindow.on('close', (e) => {
+      if (!isQuitting) {
+        e.preventDefault()
+        mainWindow?.hide()
+      }
+    })
+  }
+
   mainWindow.on('closed', () => {
     mainWindow = null
   })
 }
 
+function createTray() {
+  if (process.platform !== 'win32') return
+
+  const iconPath = path.join(__dirname, '../build/icon-large.png')
+  const trayIcon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 })
+  tray = new Tray(trayIcon.isEmpty() ? nativeImage.createEmpty() : trayIcon)
+  tray.setToolTip('Goxlearning Academy')
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: 'Ouvrir Goxlearning Academy',
+      click: () => {
+        if (mainWindow) {
+          mainWindow.show()
+          mainWindow.focus()
+        }
+      },
+    },
+    { type: 'separator' },
+    {
+      label: 'Quitter',
+      click: () => {
+        isQuitting = true
+        app.quit()
+      },
+    },
+  ])
+
+  tray.setContextMenu(contextMenu)
+
+  tray.on('double-click', () => {
+    if (mainWindow) {
+      mainWindow.show()
+      mainWindow.focus()
+    }
+  })
+}
+
 app.whenReady().then(() => {
   createWindow()
+  createTray()
   setupAutoUpdater()
 
   // Auto-launch on system startup
@@ -147,7 +199,12 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit()
+  // On Windows, app stays alive in tray; on Linux, quit
+  if (process.platform !== 'darwin' && process.platform !== 'win32') app.quit()
+})
+
+app.on('before-quit', () => {
+  isQuitting = true
 })
 
 app.on('activate', () => {

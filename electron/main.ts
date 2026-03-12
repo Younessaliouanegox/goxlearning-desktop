@@ -39,7 +39,11 @@ ipcMain.on('download-update', () => {
 })
 
 ipcMain.on('install-update', () => {
-  autoUpdater.quitAndInstall(false, true)
+  setImmediate(() => {
+    app.removeAllListeners('window-all-closed')
+    mainWindow?.close()
+    autoUpdater.quitAndInstall(false, true)
+  })
 })
 
 ipcMain.handle('get-app-version', () => {

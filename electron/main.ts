@@ -3,6 +3,12 @@ import path from 'path'
 import { autoUpdater } from 'electron-updater'
 import AutoLaunch from 'auto-launch'
 
+/* ── App identity (affects Windows notifications & taskbar) ── */
+app.name = 'Goxlearning Academy'
+if (process.platform === 'win32') {
+  app.setAppUserModelId('Goxlearning Academy')
+}
+
 let mainWindow: BrowserWindow | null = null
 
 /* ── Auto-updater config ── */

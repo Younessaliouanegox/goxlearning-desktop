@@ -1,6 +1,7 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, screen, Notification, nativeImage } from 'electron'
 import path from 'path'
 import { autoUpdater } from 'electron-updater'
+import AutoLaunch from 'auto-launch'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -33,6 +34,10 @@ function setupAutoUpdater() {
 }
 
 /* ── IPC handlers ── */
+ipcMain.on('download-update', () => {
+  autoUpdater.downloadUpdate()
+})
+
 ipcMain.on('install-update', () => {
   autoUpdater.quitAndInstall(false, true)
 })
@@ -41,15 +46,60 @@ ipcMain.handle('get-app-version', () => {
   return app.getVersion()
 })
 
+/* ── Native OS notifications ── */
+ipcMain.on('show-notification', (_e, data: { title: string; body: string; tag?: string }) => {
+  if (!Notification.isSupported()) return
+
+  const iconPath = path.join(__dirname, '../build/icon-large.png')
+  const icon = nativeImage.createFromPath(iconPath)
+
+  const notif = new Notification({
+    title: data.title,
+    body: data.body,
+    silent: false,
+    icon: icon.isEmpty() ? undefined : icon,
+  })
+
+  notif.on('click', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.focus()
+      mainWindow.show()
+    }
+  })
+
+  notif.show()
+})
+
+ipcMain.on('set-badge-count', (_e, count: number) => {
+  if (process.platform === 'darwin') {
+    app.dock.setBadge(count > 0 ? String(count) : '')
+  }
+})
+
 /* ── Window creation ── */
 function createWindow() {
+  const isMac = process.platform === 'darwin'
+
+  const appIcon = nativeImage.createFromPath(path.join(__dirname, '../build/icon-large.png'))
+
+  if (isMac && !appIcon.isEmpty()) {
+    app.dock.setIcon(appIcon)
+  }
+
   mainWindow = new BrowserWindow({
     width: 1024,
     height: 700,
     minWidth: 420,
     minHeight: 600,
-    titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 16, y: 16 },
+    icon: appIcon.isEmpty() ? undefined : appIcon,
+    titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
+    titleBarOverlay: !isMac ? {
+      color: '#ffffff',
+      symbolColor: '#1a237e',
+      height: 40,
+    } : undefined,
+    trafficLightPosition: isMac ? { x: 16, y: 14 } : undefined,
     backgroundColor: '#ffffff',
     webPreferences: {
       nodeIntegration: false,
@@ -73,6 +123,17 @@ function createWindow() {
 app.whenReady().then(() => {
   createWindow()
   setupAutoUpdater()
+
+  // Auto-launch on system startup
+  if (!process.env.VITE_DEV_SERVER_URL) {
+    const autoLauncher = new AutoLaunch({
+      name: 'GoxLearning',
+      isHidden: false,
+    })
+    autoLauncher.isEnabled().then((isEnabled: boolean) => {
+      if (!isEnabled) autoLauncher.enable()
+    }).catch((err: any) => console.error('[AutoLaunch] Error:', err))
+  }
 })
 
 app.on('window-all-closed', () => {

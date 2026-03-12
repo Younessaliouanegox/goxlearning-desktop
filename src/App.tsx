@@ -10,8 +10,8 @@ export default function App() {
 
   if (loading) {
     return (
-      <div style={styles.splash}>
-        <img src="/logo-light.png" alt="GoxLearning" style={styles.logo} />
+      <div style={styles.splash} className="titlebar-drag">
+        <img src="./logo-light.png" alt="GoxLearning" style={styles.logo} />
         <Loader2 size={20} style={styles.spinner} className="animate-spin" />
       </div>
     )

@@ -1,6 +1,7 @@
-import React, { useState } from 'react'
-import { MessageSquare, Megaphone, Palette, FolderOpen, Headphones, LogOut, Users, ChevronRight, Copy, Info, Mail, ClipboardList } from 'lucide-react'
+import React, { useState, useCallback, useEffect } from 'react'
+import { MessageSquare, Megaphone, Palette, FolderOpen, Headphones, LogOut, Users, ChevronRight, Copy, Info, Mail, ClipboardList, Moon, Sun } from 'lucide-react'
 import ContextMenu, { type ContextMenuItem } from '../components/ContextMenu'
+import { useTheme } from '../lib/hooks/useTheme'
 import type { Student, Group, Tab } from '../types'
 
 interface SidebarProps {
@@ -12,6 +13,7 @@ interface SidebarProps {
   onTabChange: (tab: Tab) => void
   onSignOut: () => void
   onProfileClick?: () => void
+  unreadCounts?: Partial<Record<Tab, number>>
 }
 
 const NAV_ITEMS: { key: Tab; label: string; icon: React.ComponentType<any> }[] = [
@@ -42,9 +44,15 @@ function getGroupColor(index: number) {
 
 export default function Sidebar({
   student, groups, selectedGroupId, activeTab,
-  onSelectGroup, onTabChange, onSignOut, onProfileClick,
+  onSelectGroup, onTabChange, onSignOut, onProfileClick, unreadCounts = {},
 }: SidebarProps) {
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null)
+  const { theme, toggle: toggleTheme, isDark } = useTheme()
+  const [appVersion, setAppVersion] = useState(__APP_VERSION__)
+
+  useEffect(() => {
+    window.electronUpdater?.getAppVersion?.().then((v: string) => { if (v) setAppVersion(v) }).catch(() => {})
+  }, [])
 
   const handleGroupCtx = (e: React.MouseEvent, g: Group) => {
     e.preventDefault()
@@ -76,12 +84,15 @@ export default function Sidebar({
     <div style={styles.sidebar} className="titlebar-drag">
       {/* Logo */}
       <div style={styles.logoSection} className="titlebar-drag">
-        <img
-          src="/logo-light.png"
-          alt="GoxLearning"
-          style={styles.logo}
-          className="titlebar-nodrag"
-        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <img
+            src={isDark ? './logo-dark.png' : './logo-light.png'}
+            alt="GoxLearning"
+            style={styles.logo}
+            className="titlebar-nodrag"
+          />
+          <span style={styles.versionBadge}>v{appVersion}</span>
+        </div>
       </div>
 
       {/* Navigation */}
@@ -97,6 +108,20 @@ export default function Sidebar({
                 ...(isActive ? styles.navItemActive : {}),
               }}
               onClick={() => onTabChange(key)}
+              onMouseEnter={e => {
+                if (!isActive) {
+                  e.currentTarget.style.background = 'var(--bg-hover)'
+                  e.currentTarget.style.transform = 'translateX(2px)'
+                }
+              }}
+              onMouseLeave={e => {
+                if (!isActive) {
+                  e.currentTarget.style.background = 'transparent'
+                  e.currentTarget.style.transform = 'translateX(0)'
+                }
+              }}
+              onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.98)' }}
+              onMouseUp={e => { e.currentTarget.style.transform = isActive ? 'none' : 'translateX(2px)' }}
             >
               <div style={{
                 ...styles.navIcon,
@@ -110,6 +135,11 @@ export default function Sidebar({
               }} className="sidebar-label">
                 {label}
               </span>
+              {!isActive && (unreadCounts[key] || 0) > 0 && (
+                <div style={styles.unreadBadge}>
+                  {(unreadCounts[key] || 0) > 99 ? '99+' : unreadCounts[key]}
+                </div>
+              )}
               {isActive && <div style={styles.activeIndicator} />}
             </button>
           )
@@ -134,6 +164,20 @@ export default function Sidebar({
                 }}
                 onClick={() => onSelectGroup(g)}
                 onContextMenu={(e) => handleGroupCtx(e, g)}
+                onMouseEnter={e => {
+                  if (!isSelected) {
+                    e.currentTarget.style.background = 'var(--bg-hover)'
+                    e.currentTarget.style.transform = 'translateX(2px)'
+                  }
+                }}
+                onMouseLeave={e => {
+                  if (!isSelected) {
+                    e.currentTarget.style.background = 'transparent'
+                    e.currentTarget.style.transform = 'translateX(0)'
+                  }
+                }}
+                onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.98)' }}
+                onMouseUp={e => { e.currentTarget.style.transform = isSelected ? 'none' : 'translateX(2px)' }}
               >
                 <div style={{
                   ...styles.groupAvatar,
@@ -174,6 +218,8 @@ export default function Sidebar({
           style={{ ...styles.profileCard, cursor: onProfileClick ? 'pointer' : 'default' }}
           onClick={onProfileClick}
           onContextMenu={handleProfileCtx}
+          onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)' }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
         >
           {student.avatar_url ? (
             <img src={student.avatar_url} alt="" style={styles.profileAvatarImg} />
@@ -185,9 +231,48 @@ export default function Sidebar({
           <div style={styles.profileInfo} className="sidebar-profile-info">
             <div style={styles.profileName}>{student.name}</div>
             <div style={styles.profileEmail}>{student.email}</div>
+            {student.role && (
+              <div style={styles.profileRole}>
+                {student.role.split(',').map(r => r.trim()).filter(Boolean).map((r, i) => (
+                  <span key={i} style={styles.roleBadge}>{r.charAt(0).toUpperCase() + r.slice(1)}</span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
-        <button style={styles.logoutBtn} onClick={onSignOut}>
+        <button
+          style={styles.themeBtn}
+          onClick={toggleTheme}
+          title={isDark ? 'Mode clair' : 'Mode sombre'}
+          onMouseEnter={e => {
+            e.currentTarget.style.background = 'var(--bg-hover)'
+            e.currentTarget.style.transform = 'scale(1.05)'
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.background = 'var(--bg-muted)'
+            e.currentTarget.style.transform = 'scale(1)'
+          }}
+          onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.95)' }}
+          onMouseUp={e => { e.currentTarget.style.transform = 'scale(1.05)' }}
+        >
+          {isDark ? <Sun size={15} /> : <Moon size={15} />}
+        </button>
+        <button
+          style={styles.logoutBtn}
+          onClick={onSignOut}
+          onMouseEnter={e => {
+            e.currentTarget.style.background = 'var(--error)'
+            e.currentTarget.style.color = '#fff'
+            e.currentTarget.style.transform = 'scale(1.05)'
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.background = 'var(--error-bg)'
+            e.currentTarget.style.color = 'var(--error)'
+            e.currentTarget.style.transform = 'scale(1)'
+          }}
+          onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.95)' }}
+          onMouseUp={e => { e.currentTarget.style.transform = 'scale(1.05)' }}
+        >
           <LogOut size={15} />
         </button>
       </div>
@@ -208,16 +293,30 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     position: 'relative',
     zIndex: 10,
+    transition: 'width 0.3s cubic-bezier(.4,0,.2,1), min-width 0.3s cubic-bezier(.4,0,.2,1)',
   },
 
   // Logo
   logoSection: {
-    padding: '20px 20px 12px',
+    padding: '12px 20px 12px',
+    paddingTop: 44,
     borderBottom: '1px solid var(--border-light)',
   },
   logo: {
     height: 28,
     objectFit: 'contain' as any,
+  },
+  versionBadge: {
+    fontSize: 10,
+    fontWeight: 700,
+    color: 'var(--text-tertiary)',
+    background: 'var(--bg-main)',
+    border: '1px solid var(--border-light)',
+    borderRadius: 6,
+    padding: '2px 6px',
+    letterSpacing: '0.02em',
+    whiteSpace: 'nowrap' as any,
+    flexShrink: 0,
   },
 
   // Navigation
@@ -257,10 +356,11 @@ const styles: Record<string, React.CSSProperties> = {
     border: 'none',
     cursor: 'pointer',
     background: 'transparent',
-    transition: 'all 0.15s ease',
+    transition: 'all 0.15s cubic-bezier(.4,0,.2,1)',
     position: 'relative' as any,
     marginBottom: 2,
     textAlign: 'left' as any,
+    willChange: 'transform, background',
   },
   navItemActive: {
     background: 'var(--brand-light)',
@@ -290,6 +390,22 @@ const styles: Record<string, React.CSSProperties> = {
   navLabelActive: {
     color: 'var(--brand)',
     fontWeight: 700,
+  },
+  unreadBadge: {
+    minWidth: 18,
+    height: 18,
+    borderRadius: 99,
+    background: 'var(--error)',
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 700,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '0 5px',
+    marginLeft: 'auto',
+    flexShrink: 0,
+    animation: 'badgePop 0.3s cubic-bezier(.4,0,.2,1) both',
   },
   activeIndicator: {
     position: 'absolute' as any,
@@ -325,9 +441,10 @@ const styles: Record<string, React.CSSProperties> = {
     border: 'none',
     cursor: 'pointer',
     background: 'transparent',
-    transition: 'all 0.15s ease',
+    transition: 'all 0.15s cubic-bezier(.4,0,.2,1)',
     marginBottom: 2,
     textAlign: 'left' as any,
+    willChange: 'transform, background',
   },
   groupItemActive: {
     background: 'var(--brand-light)',
@@ -390,6 +507,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '6px 8px',
     borderRadius: 10,
     minWidth: 0,
+    transition: 'background 0.15s cubic-bezier(.4,0,.2,1)',
   },
   profileAvatar: {
     width: 34,
@@ -430,6 +548,35 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: 'hidden',
     textOverflow: 'ellipsis',
   },
+  profileRole: {
+    display: 'flex',
+    gap: 4,
+    marginTop: 3,
+    flexWrap: 'wrap' as any,
+  },
+  roleBadge: {
+    fontSize: 9,
+    fontWeight: 700,
+    color: 'var(--brand)',
+    background: 'var(--brand-light)',
+    padding: '1px 7px',
+    borderRadius: 99,
+    letterSpacing: '0.02em',
+  },
+  themeBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 9,
+    background: 'var(--bg-muted)',
+    border: 'none',
+    cursor: 'pointer',
+    color: 'var(--text-secondary)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    transition: 'all 0.2s cubic-bezier(.4,0,.2,1)',
+  },
   logoutBtn: {
     width: 34,
     height: 34,
@@ -442,6 +589,6 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
-    transition: 'all 0.15s ease',
+    transition: 'all 0.2s cubic-bezier(.4,0,.2,1)',
   },
 }

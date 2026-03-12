@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react'
-import { Play, Video, Clock, Calendar, FolderOpen, CheckCircle2, HardDrive, MonitorPlay, ExternalLink, ListTodo, Copy, Link, Check, Link2 } from 'lucide-react'
+import React, { useState, useEffect, useMemo } from 'react'
+import { Play, Video, Clock, Calendar, FolderOpen, CheckCircle2, HardDrive, MonitorPlay, ExternalLink, ListTodo, Copy, Link, Check, Link2, UserCheck, Users } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { canManageResources } from '../lib/roles'
+import { useSessionAttendance } from '../lib/hooks/useAttendance'
 import ContextMenu, { type ContextMenuItem } from '../components/ContextMenu'
 import Modal from '../components/Modal'
 import Empty from '../components/Empty'
@@ -21,6 +22,8 @@ export default function ResourcesTab({ group, student }: ResourcesTabProps) {
   const [recordingUrl, setRecordingUrl] = useState('')
 
   const canManage = canManageResources(student?.role)
+  const sessionIds = useMemo(() => sessions.map(s => s.id), [sessions])
+  const { attendance, markPresent } = useSessionAttendance(sessionIds, student?.id)
 
   const markSessionDone = async (sessionId: string) => {
     await supabase.from('sessions').update({ status: 'Completed' }).eq('id', sessionId)
@@ -147,7 +150,15 @@ export default function ResourcesTab({ group, student }: ResourcesTabProps) {
       {sessions.length === 0 && <Empty icon={FolderOpen} text="Aucune séance" />}
       <div style={styles.list}>
         {sessions.map((s, i) => (
-          <SessionCard key={s.id} session={s} index={i} onContextMenu={(e) => handleSessionCtx(e, s)} />
+          <SessionCard
+            key={s.id}
+            session={s}
+            index={i}
+            onContextMenu={(e) => handleSessionCtx(e, s)}
+            attendeeCount={attendance[s.id]?.count ?? 0}
+            isPresent={attendance[s.id]?.present ?? false}
+            onMarkPresent={() => markPresent(s.id)}
+          />
         ))}
       </div>
 
@@ -184,7 +195,7 @@ function getStatusStyle(status: string) {
   }
 }
 
-function SessionCard({ session, index, onContextMenu }: { session: SessionRecord; index: number; onContextMenu?: (e: React.MouseEvent) => void }) {
+function SessionCard({ session, index, onContextMenu, attendeeCount, isPresent, onMarkPresent }: { session: SessionRecord; index: number; onContextMenu?: (e: React.MouseEvent) => void; attendeeCount: number; isPresent: boolean; onMarkPresent: () => void }) {
   const hasRecording = !!session.recording_url
   const statusStyle = getStatusStyle(session.status)
   const formattedDate = session.session_date
@@ -196,6 +207,10 @@ function SessionCard({ session, index, onContextMenu }: { session: SessionRecord
   const timeStr = session.start_time && session.end_time
     ? `${session.start_time.slice(0, 5)} - ${session.end_time.slice(0, 5)}`
     : null
+
+  // Check if session is today (allow marking attendance)
+  const today = new Date().toISOString().slice(0, 10)
+  const isTodaySession = session.session_date?.slice(0, 10) === today && session.status !== 'Completed' && session.status !== 'Cancelled'
 
   return (
     <div
@@ -244,8 +259,28 @@ function SessionCard({ session, index, onContextMenu }: { session: SessionRecord
           )}
         </div>
       </div>
-      {/* Icons for recording & todo */}
+      {/* Icons for attendance, recording & todo */}
       <div style={styles.iconGroup}>
+        {isTodaySession && !isPresent && (
+          <button
+            style={styles.attendBtn}
+            onClick={(e) => { e.stopPropagation(); onMarkPresent() }}
+            title="Marquer présent"
+          >
+            <UserCheck size={13} /> Présent
+          </button>
+        )}
+        {isPresent && (
+          <div style={{ ...styles.miniIcon, background: 'var(--success-bg)', color: 'var(--success)' }} title="Présent">
+            <UserCheck size={14} />
+          </div>
+        )}
+        {attendeeCount > 0 && (
+          <div style={{ ...styles.miniIcon, background: 'var(--brand-light)', color: 'var(--brand)' }} title={`${attendeeCount} présent(s)`}>
+            <Users size={13} />
+            <span style={{ fontSize: 10, fontWeight: 700, marginLeft: 2 }}>{attendeeCount}</span>
+          </div>
+        )}
         {session.has_todo && (
           <div style={{ ...styles.miniIcon, background: 'var(--warning-bg)', color: 'var(--warning)' }}>
             <ListTodo size={14} />
@@ -413,5 +448,23 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     flexShrink: 0,
     transition: 'all 0.15s ease',
+  },
+  attendBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+    height: 28,
+    padding: '0 10px',
+    borderRadius: 8,
+    border: 'none',
+    background: 'var(--success)',
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: 700,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    flexShrink: 0,
+    whiteSpace: 'nowrap' as any,
+    transition: 'opacity 0.15s',
   },
 }

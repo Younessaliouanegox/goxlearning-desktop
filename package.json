@@ -1,6 +1,6 @@
 {
   "name": "goxlearning-desktop",
-  "version": "1.0.1",
+  "version": "1.0.8",
   "description": "GoxLearning Student Desktop App",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -17,13 +17,14 @@
   },
   "build": {
     "appId": "com.goxlearning.student",
-    "productName": "GoxLearning",
+    "productName": "Goxlearning Academy - Student App",
     "directories": {
       "output": "release"
     },
     "files": [
       "dist/**/*",
-      "dist-electron/**/*"
+      "dist-electron/**/*",
+      "build/icon-large.png"
     ],
     "publish": {
       "provider": "github",
@@ -39,7 +40,12 @@
       "category": "public.app-category.education"
     },
     "win": {
-      "target": "nsis",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
       "icon": "build/icon.png"
     },
     "nsis": {
@@ -49,6 +55,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",
+    "auto-launch": "^5.0.6",
     "electron-updater": "^6.8.3",
     "lucide-react": "^0.468.0",
     "react": "^18.3.1",

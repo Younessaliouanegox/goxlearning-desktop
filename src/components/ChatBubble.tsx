@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react'
-import { Pin, Mic } from 'lucide-react'
+import React, { useState, useRef, useEffect } from 'react'
+import { Pin, Play, Pause, Check, CheckCheck } from 'lucide-react'
 
 interface ReplyInfo {
   id: string
@@ -22,9 +22,12 @@ interface ChatBubbleProps {
   replyTo?: ReplyInfo | null
   searchQuery?: string
   showReactionPicker?: boolean
+  readStatus?: 'sent' | 'read'
+  isOnline?: boolean
   onContextMenu?: (e: React.MouseEvent) => void
   onReplyClick?: (replyId: string) => void
   onReaction?: (emoji: string) => void
+  onImageClick?: (src: string) => void
 }
 
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥']
@@ -71,11 +74,15 @@ function highlightText(text: string, query: string) {
 export default function ChatBubble({
   content, time, isMe, senderName, senderRole, senderAvatarUrl, variant = 'group',
   fileUrl, fileType, pinned, reactions, replyTo, searchQuery,
-  showReactionPicker, onContextMenu, onReplyClick, onReaction,
+  showReactionPicker, readStatus, isOnline, onContextMenu, onReplyClick, onReaction, onImageClick,
 }: ChatBubbleProps) {
   const [hovered, setHovered] = useState(false)
   const audioRef = useRef<HTMLAudioElement>(null)
   const [audioPlaying, setAudioPlaying] = useState(false)
+  const [audioProgress, setAudioProgress] = useState(0)
+  const [audioDuration, setAudioDuration] = useState(0)
+  const [audioCurrentTime, setAudioCurrentTime] = useState(0)
+  const [playbackRate, setPlaybackRate] = useState(1)
 
   const formattedTime = new Date(time).toLocaleTimeString('fr-FR', {
     hour: '2-digit',
@@ -90,10 +97,25 @@ export default function ChatBubble({
 
   const reactionEntries = Object.entries(reactions || {}).filter(([, users]) => users.length > 0)
 
-  const toggleAudio = () => {
+  const toggleAudio = (e: React.MouseEvent) => {
+    e.stopPropagation()
     if (!audioRef.current) return
     if (audioPlaying) { audioRef.current.pause(); setAudioPlaying(false) }
-    else { audioRef.current.play(); setAudioPlaying(true) }
+    else { audioRef.current.playbackRate = playbackRate; audioRef.current.play(); setAudioPlaying(true) }
+  }
+
+  const cycleSpeed = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    const speeds = [1, 1.5, 2]
+    const next = speeds[(speeds.indexOf(playbackRate) + 1) % speeds.length]
+    setPlaybackRate(next)
+    if (audioRef.current) audioRef.current.playbackRate = next
+  }
+
+  const formatTime = (s: number) => {
+    const m = Math.floor(s / 60)
+    const sec = Math.floor(s % 60)
+    return `${m}:${sec.toString().padStart(2, '0')}`
   }
 
   return (
@@ -101,7 +123,7 @@ export default function ChatBubble({
       style={{
         ...styles.row,
         flexDirection: isMe ? 'row-reverse' : 'row',
-        background: hovered ? 'rgba(0,0,0,.02)' : 'transparent',
+        background: hovered ? 'var(--bg-hover)' : 'transparent',
       }}
       onMouseEnter={() => { setHovered(true) }}
       onMouseLeave={() => { setHovered(false) }}
@@ -109,13 +131,16 @@ export default function ChatBubble({
     >
       {/* Avatar */}
       {senderName && (
-        senderAvatarUrl ? (
-          <img src={senderAvatarUrl} alt="" style={{ ...styles.avatar, objectFit: 'cover' as any }} />
-        ) : (
-          <div style={{ ...styles.avatar, background: avatarBg }}>
-            {getInitials(senderName)}
-          </div>
-        )
+        <div style={{ position: 'relative' as any, flexShrink: 0 }}>
+          {senderAvatarUrl ? (
+            <img src={senderAvatarUrl} alt="" style={{ ...styles.avatar, objectFit: 'cover' as any }} />
+          ) : (
+            <div style={{ ...styles.avatar, background: avatarBg }}>
+              {getInitials(senderName)}
+            </div>
+          )}
+          {isOnline && <div style={styles.onlineDot} />}
+        </div>
       )}
 
       <div style={{
@@ -182,31 +207,76 @@ export default function ChatBubble({
 
             {/* Image */}
             {isImage && (
-              <img src={fileUrl!} alt="" style={styles.msgImage} onClick={() => window.open(fileUrl!, '_blank')} />
+              <img src={fileUrl!} alt="" style={styles.msgImage} onClick={() => onImageClick ? onImageClick(fileUrl!) : window.open(fileUrl!, '_blank')} />
             )}
 
             {/* Voice message */}
             {isAudio && (
-              <div style={styles.voiceRow} onClick={toggleAudio}>
-                <div style={{
-                  ...styles.voicePlayBtn,
-                  background: isMe ? 'rgba(255,255,255,.2)' : 'var(--brand-light)',
-                  color: isMe ? '#fff' : 'var(--brand)',
-                }}>
-                  <Mic size={14} />
+              <div style={styles.voiceRow}>
+                <button
+                  onClick={toggleAudio}
+                  style={{
+                    ...styles.voicePlayBtn,
+                    background: isMe ? 'rgba(255,255,255,.2)' : 'var(--brand-light)',
+                    color: isMe ? '#fff' : 'var(--brand)',
+                  }}
+                >
+                  {audioPlaying ? <Pause size={14} /> : <Play size={14} style={{ marginLeft: 1 }} />}
+                </button>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' as any, gap: 3, minWidth: 80 }}>
+                  <div style={styles.voiceWave}>
+                    {[...Array(24)].map((_, i) => {
+                      const barProgress = i / 24
+                      const isPlayed = barProgress < audioProgress
+                      return (
+                        <div key={i} style={{
+                          width: 2,
+                          height: 4 + Math.sin(i * 0.7) * 8 + Math.cos(i * 1.3) * 4,
+                          borderRadius: 1,
+                          background: isMe
+                            ? (isPlayed ? 'rgba(255,255,255,.9)' : 'rgba(255,255,255,.3)')
+                            : (isPlayed ? 'var(--brand)' : 'rgba(26,35,126,.2)'),
+                          transition: 'background 0.15s ease',
+                        }} />
+                      )
+                    })}
+                  </div>
+                  <span style={{
+                    fontSize: 10,
+                    color: isMe ? 'rgba(255,255,255,.5)' : 'var(--text-tertiary)',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}>
+                    {audioPlaying || audioCurrentTime > 0
+                      ? `${formatTime(audioCurrentTime)} / ${formatTime(audioDuration)}`
+                      : audioDuration > 0 ? formatTime(audioDuration) : '0:00'
+                    }
+                  </span>
                 </div>
-                <div style={styles.voiceWave}>
-                  {[...Array(16)].map((_, i) => (
-                    <div key={i} style={{
-                      width: 2,
-                      height: 4 + Math.random() * 14,
-                      borderRadius: 1,
-                      background: isMe ? 'rgba(255,255,255,.4)' : 'var(--brand)',
-                      opacity: audioPlaying ? 1 : 0.4,
-                    }} />
-                  ))}
-                </div>
-                <audio ref={audioRef} src={fileUrl!} onEnded={() => setAudioPlaying(false)} />
+                <button
+                  onClick={cycleSpeed}
+                  style={{
+                    ...styles.speedBtn,
+                    color: isMe ? 'rgba(255,255,255,.7)' : 'var(--text-secondary)',
+                    background: isMe ? 'rgba(255,255,255,.1)' : 'var(--bg-muted)',
+                  }}
+                  title="Vitesse de lecture"
+                >
+                  {playbackRate}x
+                </button>
+                <audio
+                  ref={audioRef}
+                  src={fileUrl!}
+                  onLoadedMetadata={() => {
+                    if (audioRef.current) setAudioDuration(audioRef.current.duration)
+                  }}
+                  onTimeUpdate={() => {
+                    if (audioRef.current && audioRef.current.duration) {
+                      setAudioCurrentTime(audioRef.current.currentTime)
+                      setAudioProgress(audioRef.current.currentTime / audioRef.current.duration)
+                    }
+                  }}
+                  onEnded={() => { setAudioPlaying(false); setAudioProgress(0); setAudioCurrentTime(0) }}
+                />
               </div>
             )}
 
@@ -234,6 +304,11 @@ export default function ChatBubble({
                   color: isMe ? 'rgba(255,255,255,.45)' : 'var(--text-tertiary)',
                 }}>
                   {formattedTime}
+                  {isMe && readStatus && (
+                    readStatus === 'read'
+                      ? <CheckCheck size={13} style={{ marginLeft: 3, verticalAlign: 'middle', color: isMe ? 'rgba(255,255,255,.7)' : 'var(--brand)' }} />
+                      : <Check size={13} style={{ marginLeft: 3, verticalAlign: 'middle' }} />
+                  )}
                 </span>
               </div>
             )}
@@ -245,6 +320,11 @@ export default function ChatBubble({
                 color: isMe ? 'rgba(255,255,255,.5)' : 'var(--text-tertiary)',
               }}>
                 {formattedTime}
+                {isMe && readStatus && (
+                  readStatus === 'read'
+                    ? <CheckCheck size={13} style={{ marginLeft: 3, verticalAlign: 'middle', color: isMe ? 'rgba(255,255,255,.7)' : 'var(--brand)' }} />
+                    : <Check size={13} style={{ marginLeft: 3, verticalAlign: 'middle' }} />
+                )}
               </div>
             )}
           </div>
@@ -305,6 +385,16 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     fontWeight: 700,
     flexShrink: 0,
+  },
+  onlineDot: {
+    position: 'absolute' as any,
+    bottom: 0,
+    right: 0,
+    width: 10,
+    height: 10,
+    borderRadius: '50%',
+    background: '#22c55e',
+    border: '2px solid var(--bg-main)',
   },
   bubbleWrap: {
     display: 'flex',
@@ -406,19 +496,34 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: 2,
   },
   voicePlayBtn: {
-    width: 28,
-    height: 28,
+    width: 32,
+    height: 32,
     borderRadius: 99,
+    border: 'none',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    cursor: 'pointer',
+    transition: 'transform 0.15s ease, opacity 0.15s ease',
   },
   voiceWave: {
     display: 'flex',
     alignItems: 'center',
     gap: 2,
     height: 20,
+  },
+  speedBtn: {
+    border: 'none',
+    borderRadius: 6,
+    padding: '2px 6px',
+    fontSize: 10,
+    fontWeight: 700,
+    cursor: 'pointer',
+    flexShrink: 0,
+    fontFamily: 'inherit',
+    fontVariantNumeric: 'tabular-nums',
+    transition: 'opacity 0.15s',
   },
 
   // Reaction picker

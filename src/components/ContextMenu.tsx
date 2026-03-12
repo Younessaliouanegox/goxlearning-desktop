@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState, useLayoutEffect } from 'react'
+import ReactDOM from 'react-dom'
 
 export interface ContextMenuItem {
   label: string
@@ -15,31 +16,42 @@ interface ContextMenuProps {
   onClose: () => void
 }
 
-const MENU_WIDTH = 200
-const ITEM_HEIGHT = 36
-const PADDING = 8
-const EDGE_MARGIN = 8
+const M = 10 // margin from all viewport edges
 
 export default function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null)
-  const [pos, setPos] = useState({ x, y })
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
 
-  // Measure and reposition to stay within viewport
-  useEffect(() => {
+  // Measure after paint then clamp within viewport with 10px margin
+  useLayoutEffect(() => {
     const el = ref.current
     if (!el) return
-    const rect = el.getBoundingClientRect()
-    const vw = window.innerWidth
-    const vh = window.innerHeight
-    let nx = x
-    let ny = y
-    if (x + rect.width > vw - EDGE_MARGIN) nx = vw - rect.width - EDGE_MARGIN
-    if (y + rect.height > vh - EDGE_MARGIN) ny = vh - rect.height - EDGE_MARGIN
-    if (nx < EDGE_MARGIN) nx = EDGE_MARGIN
-    if (ny < EDGE_MARGIN) ny = EDGE_MARGIN
-    setPos({ x: nx, y: ny })
+    // Double rAF ensures the browser has fully painted the menu
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const w = el.offsetWidth
+        const h = el.offsetHeight
+        const vw = window.innerWidth
+        const vh = window.innerHeight
+
+        let nx = x
+        let ny = y
+
+        // Clamp right
+        if (nx + w > vw - M) nx = vw - w - M
+        // Clamp bottom
+        if (ny + h > vh - M) ny = vh - h - M
+        // Clamp left
+        if (nx < M) nx = M
+        // Clamp top
+        if (ny < M) ny = M
+
+        setPos({ x: nx, y: ny })
+      })
+    })
   }, [x, y])
 
+  // Close on outside click, Escape, or scroll
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) onClose()
@@ -58,15 +70,17 @@ export default function ContextMenu({ x, y, items, onClose }: ContextMenuProps) 
     }
   }, [onClose])
 
-  return (
+  const menu = (
     <div
       ref={ref}
       style={{
         position: 'fixed',
-        top: pos.y,
-        left: pos.x,
-        zIndex: 9999,
-        animation: 'ctxIn 0.12s ease',
+        top: pos ? pos.y : -9999,
+        left: pos ? pos.x : -9999,
+        zIndex: 99999,
+        opacity: pos ? 1 : 0,
+        animation: pos ? 'ctxIn 0.12s ease' : 'none',
+        pointerEvents: pos ? 'auto' : 'none',
       }}
     >
       <style>{`@keyframes ctxIn { from { opacity:0; transform:scale(.95); } to { opacity:1; transform:scale(1); } }`}</style>
@@ -96,6 +110,9 @@ export default function ContextMenu({ x, y, items, onClose }: ContextMenuProps) 
       </div>
     </div>
   )
+
+  // Render as a portal on document.body so no parent overflow can clip it
+  return ReactDOM.createPortal(menu, document.body)
 }
 
 const styles: Record<string, React.CSSProperties> = {
@@ -107,7 +124,6 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 10,
     padding: '4px 0',
     boxShadow: '0 8px 32px rgba(0,0,0,.14), 0 1px 4px rgba(0,0,0,.08)',
-    overflow: 'hidden',
   },
   menuItem: {
     display: 'flex',

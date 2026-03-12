@@ -19,6 +19,8 @@ interface ChatInputProps {
   replyTo?: ReplyPreview | null
   onCancelReply?: () => void
   members?: MentionUser[]
+  onTyping?: () => void
+  onStopTyping?: () => void
 }
 
 /* ── Emoji Data ── */
@@ -32,7 +34,7 @@ const EMOJI_CATEGORIES: { label: string; emojis: string[] }[] = [
 ]
 
 /* ── Component ── */
-export default function ChatInput({ onSend, placeholder = 'Écrire un message...', replyTo, onCancelReply, members = [] }: ChatInputProps) {
+export default function ChatInput({ onSend, placeholder = 'Écrire un message...', replyTo, onCancelReply, members = [], onTyping, onStopTyping }: ChatInputProps) {
   const [input, setInput] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -84,6 +86,7 @@ export default function ChatInput({ onSend, placeholder = 'Écrire un message...
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value
     setInput(val)
+    if (val.trim()) onTyping?.()
 
     const pos = e.target.selectionStart || 0
     const textBefore = val.slice(0, pos)
@@ -131,6 +134,7 @@ export default function ChatInput({ onSend, placeholder = 'Écrire un message...
     setInput('')
     setFile(null)
     setMentionQuery(null)
+    onStopTyping?.()
     setTimeout(() => textareaRef.current?.focus(), 0)
   }
 

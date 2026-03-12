@@ -32,16 +32,16 @@ export default function LoginScreen() {
   ]
 
   return (
-    <div style={styles.container}>
+    <div style={styles.container} className="titlebar-drag">
       {/* ═══ LEFT — Branding panel ═══ */}
-      <div style={styles.leftPanel}>
+      <div style={styles.leftPanel} className="login-left-panel">
         <div style={styles.bgImage} />
         <div style={styles.bgOverlay} />
 
         <div style={styles.leftContent}>
           {/* Top — Logo */}
           <div>
-            <img src="/logo-dark.png" alt="GoxLearning" style={styles.leftLogo} />
+            <img src="./logo-dark.png" alt="GoxLearning" style={styles.leftLogo} />
           </div>
 
           {/* Center — Hero */}
@@ -88,10 +88,10 @@ export default function LoginScreen() {
       </div>
 
       {/* ═══ RIGHT — Login form ═══ */}
-      <div style={styles.rightPanel}>
+      <div style={styles.rightPanel} className="titlebar-nodrag login-right-panel">
         <div style={styles.formWrapper}>
           {/* Logo */}
-          <img src="/logo-light.png" alt="GoxLearning" style={styles.rightLogo} />
+          <img src="./logo-light.png" alt="GoxLearning" style={styles.rightLogo} />
 
           {/* Welcome */}
           <div style={styles.welcomeSection}>
@@ -121,8 +121,8 @@ export default function LoginScreen() {
               <div style={styles.inputGroup}>
                 <div style={{
                   ...styles.inputIcon,
-                  background: focusedField === 'email' ? colors.brand : '#F3F4F6',
-                  color: focusedField === 'email' ? '#fff' : '#9CA3AF',
+                  background: focusedField === 'email' ? 'var(--brand)' : 'var(--bg-muted)',
+                  color: focusedField === 'email' ? '#fff' : 'var(--text-tertiary)',
                 }}>
                   <Mail size={15} />
                 </div>
@@ -130,8 +130,8 @@ export default function LoginScreen() {
                   style={{
                     ...styles.input,
                     paddingLeft: 52,
-                    borderColor: focusedField === 'email' ? colors.brand : '#E5E7EB',
-                    boxShadow: focusedField === 'email' ? '0 0 0 2px rgba(0,42,161,0.12)' : 'none',
+                    borderColor: focusedField === 'email' ? 'var(--brand)' : 'var(--border)',
+                    boxShadow: focusedField === 'email' ? '0 0 0 2px var(--brand-light)' : 'none',
                   }}
                   type="email"
                   placeholder="votre@email.com"
@@ -150,8 +150,8 @@ export default function LoginScreen() {
               <div style={styles.inputGroup}>
                 <div style={{
                   ...styles.inputIcon,
-                  background: focusedField === 'password' ? colors.brand : '#F3F4F6',
-                  color: focusedField === 'password' ? '#fff' : '#9CA3AF',
+                  background: focusedField === 'password' ? 'var(--brand)' : 'var(--bg-muted)',
+                  color: focusedField === 'password' ? '#fff' : 'var(--text-tertiary)',
                 }}>
                   <Lock size={15} />
                 </div>
@@ -160,8 +160,8 @@ export default function LoginScreen() {
                     ...styles.input,
                     paddingLeft: 52,
                     paddingRight: 44,
-                    borderColor: focusedField === 'password' ? colors.brand : '#E5E7EB',
-                    boxShadow: focusedField === 'password' ? '0 0 0 2px rgba(0,42,161,0.12)' : 'none',
+                    borderColor: focusedField === 'password' ? 'var(--brand)' : 'var(--border)',
+                    boxShadow: focusedField === 'password' ? '0 0 0 2px var(--brand-light)' : 'none',
                   }}
                   type={showPassword ? 'text' : 'password'}
                   placeholder="••••••••"
@@ -175,6 +175,8 @@ export default function LoginScreen() {
                   onClick={() => setShowPassword(!showPassword)}
                   style={styles.eyeBtn}
                   tabIndex={-1}
+                  onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)' }}
+                  onMouseLeave={e => { e.currentTarget.style.color = '#9CA3AF' }}
                 >
                   {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                 </button>
@@ -189,6 +191,28 @@ export default function LoginScreen() {
                 opacity: loading || !email || !password ? 0.5 : 1,
               }}
               disabled={loading || !email || !password}
+              onMouseEnter={e => {
+                if (!loading && email && password) {
+                  e.currentTarget.style.background = 'var(--brand-dark, #0d1259)'
+                  e.currentTarget.style.transform = 'translateY(-1px)'
+                  e.currentTarget.style.boxShadow = '0 6px 20px rgba(26,35,126,0.35)'
+                }
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'var(--brand)'
+                e.currentTarget.style.transform = 'translateY(0)'
+                e.currentTarget.style.boxShadow = 'none'
+              }}
+              onMouseDown={e => {
+                if (!loading) {
+                  e.currentTarget.style.transform = 'translateY(1px) scale(0.99)'
+                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(26,35,126,0.2)'
+                }
+              }}
+              onMouseUp={e => {
+                e.currentTarget.style.transform = 'translateY(-1px)'
+                e.currentTarget.style.boxShadow = '0 6px 20px rgba(26,35,126,0.35)'
+              }}
             >
               {loading ? (
                 <>
@@ -222,6 +246,10 @@ export default function LoginScreen() {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }
+        @media (max-width: 800px) {
+          .login-left-panel { display: none !important; }
+          .login-right-panel { padding: 32px 24px !important; }
+        }
       `}</style>
     </div>
   )
@@ -232,12 +260,14 @@ const styles: Record<string, React.CSSProperties> = {
   container: {
     display: 'flex',
     height: '100vh',
-    background: '#F8F9FB',
+    background: 'var(--bg-main)',
   },
 
   /* ── Left panel ── */
   leftPanel: {
-    width: 480,
+    width: '45%',
+    maxWidth: 520,
+    minWidth: 360,
     position: 'relative',
     overflow: 'hidden',
     flexShrink: 0,
@@ -245,7 +275,7 @@ const styles: Record<string, React.CSSProperties> = {
   bgImage: {
     position: 'absolute',
     inset: 0,
-    backgroundImage: 'url(/login-bg.jpg)',
+    backgroundImage: 'url(./login-bg.jpg)',
     backgroundSize: 'cover',
     backgroundPosition: 'center',
   },
@@ -262,6 +292,7 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'space-between',
     height: '100%',
     padding: 48,
+    paddingTop: 52,
   },
   leftLogo: {
     height: 40,
@@ -352,7 +383,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: 44,
     height: 44,
     borderRadius: 14,
-    background: colors.brand,
+    background: 'var(--brand)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -361,12 +392,12 @@ const styles: Record<string, React.CSSProperties> = {
   welcomeTitle: {
     fontSize: 26,
     fontWeight: 800,
-    color: '#111827',
+    color: 'var(--text-primary)',
     letterSpacing: '-0.5px',
   },
   welcomeSub: {
     fontSize: 14,
-    color: '#6B7280',
+    color: 'var(--text-secondary)',
     marginTop: 6,
     lineHeight: 1.5,
   },
@@ -378,9 +409,9 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 10,
     padding: '12px 16px',
     borderRadius: 12,
-    background: '#fef2f2',
-    border: '1px solid #fecaca',
-    color: '#dc2626',
+    background: 'var(--error-bg)',
+    border: '1px solid var(--error)',
+    color: 'var(--error)',
     marginBottom: 20,
     fontSize: 13,
   },
@@ -412,7 +443,7 @@ const styles: Record<string, React.CSSProperties> = {
   label: {
     fontSize: 11,
     fontWeight: 700,
-    color: '#9CA3AF',
+    color: 'var(--text-tertiary)',
     textTransform: 'uppercase' as any,
     letterSpacing: 1,
   },
@@ -435,12 +466,12 @@ const styles: Record<string, React.CSSProperties> = {
   input: {
     width: '100%',
     height: 48,
-    background: '#fff',
-    border: '1px solid #E5E7EB',
+    background: 'var(--bg-card)',
+    border: '1px solid var(--border)',
     borderRadius: 12,
     padding: '0 16px',
     fontSize: 14,
-    color: '#111827',
+    color: 'var(--text-primary)',
     outline: 'none',
     transition: 'all 0.2s',
   },
@@ -452,16 +483,18 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'none',
     border: 'none',
     cursor: 'pointer',
-    color: '#9CA3AF',
-    padding: 0,
+    color: 'var(--text-tertiary)',
+    padding: 4,
     display: 'flex',
     alignItems: 'center',
+    borderRadius: 6,
+    transition: 'color 0.15s cubic-bezier(.4,0,.2,1)',
   },
   submitBtn: {
     width: '100%',
     height: 50,
     borderRadius: 12,
-    background: colors.brand,
+    background: 'var(--brand)',
     color: '#fff',
     border: 'none',
     cursor: 'pointer',
@@ -471,8 +504,9 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    transition: 'all 0.2s',
+    transition: 'all 0.2s cubic-bezier(.4,0,.2,1)',
     marginTop: 4,
+    willChange: 'transform, box-shadow',
   },
 
   /* ── Footer ── */
@@ -483,14 +517,14 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 6,
     marginTop: 28,
     fontSize: 11,
-    color: '#9CA3AF',
+    color: 'var(--text-tertiary)',
   },
   footer: {
     textAlign: 'center' as any,
     fontSize: 11,
-    color: '#9CA3AF',
+    color: 'var(--text-tertiary)',
     marginTop: 20,
     paddingTop: 20,
-    borderTop: '1px solid #F3F4F6',
+    borderTop: '1px solid var(--border-light)',
   },
 }

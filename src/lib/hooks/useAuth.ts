@@ -9,10 +9,19 @@ export function useAuth() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // Safety timeout: never stay on splash for more than 8s
+    const timeout = setTimeout(() => {
+      console.warn('[AUTH] Timeout — forcing loading=false')
+      setLoading(false)
+    }, 8000)
+
     supabaseAuth.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       if (session?.user) fetchUserProfile(session.user.id, session.user.email || '')
       else setLoading(false)
+    }).catch((err) => {
+      console.error('[AUTH] getSession error:', err)
+      setLoading(false)
     })
 
     const { data: { subscription } } = supabaseAuth.auth.onAuthStateChange((_event, session) => {
@@ -24,7 +33,7 @@ export function useAuth() {
       }
     })
 
-    return () => subscription.unsubscribe()
+    return () => { subscription.unsubscribe(); clearTimeout(timeout) }
   }, [])
 
   const fetchUserProfile = async (userId: string, email: string) => {

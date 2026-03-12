@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import ContextMenu, { type ContextMenuItem } from '../components/ContextMenu'
 
-const GOX_ICON = '/gox-icon.svg'
+const GOX_ICON = './gox-icon.svg'
 import { useSupport, AiMessage } from '../lib/hooks/useSupport'
 import type { Student } from '../types'
 

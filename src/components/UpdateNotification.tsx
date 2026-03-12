@@ -3,22 +3,6 @@ import { Download, RefreshCw, X, CheckCircle2 } from 'lucide-react'
 
 type UpdateState = 'idle' | 'available' | 'downloading' | 'ready'
 
-interface UpdateInfo {
-  version: string
-}
-
-declare global {
-  interface Window {
-    electronUpdater?: {
-      onUpdateAvailable: (cb: (info: UpdateInfo) => void) => void
-      onDownloadProgress: (cb: (progress: { percent: number }) => void) => void
-      onUpdateDownloaded: (cb: (info: UpdateInfo) => void) => void
-      installUpdate: () => void
-      getAppVersion: () => Promise<string>
-    }
-  }
-}
-
 export default function UpdateNotification() {
   const [state, setState] = useState<UpdateState>('idle')
   const [version, setVersion] = useState('')

@@ -1,5 +1,20 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../supabase'
+import { getNotifPrefs } from './useNotifPrefs'
+
+function sendNativeNotification(title: string, body: string) {
+  const prefs = getNotifPrefs()
+  if (!prefs.all || !prefs.native) return
+  try {
+    window.electronAPI?.showNotification({ title, body })
+  } catch { /* not in Electron */ }
+}
+
+function updateBadge(count: number) {
+  try {
+    window.electronAPI?.setBadgeCount(count)
+  } catch { /* not in Electron */ }
+}
 
 export interface Notification {
   id: string
@@ -18,6 +33,7 @@ export function useNotifications(studentId: string, studentName: string, groupId
   const fetchNotifications = useCallback(async () => {
     if (!groupIds.length) { setLoading(false); return }
 
+    try {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() // last 24h
 
     const [msgRes, annRes, todoRes, creativityRes] = await Promise.all([
@@ -42,9 +58,8 @@ export function useNotifications(studentId: string, studentName: string, groupId
 
       // Recent todos assigned to user
       supabase
-        .from('todos')
+        .from('student_todos')
         .select('id, title, created_at, is_completed')
-        .eq('student_id', studentId)
         .eq('is_completed', false)
         .order('created_at', { ascending: false })
         .limit(10),
@@ -66,7 +81,10 @@ export function useNotifications(studentId: string, studentName: string, groupId
 
     const items: Notification[] = []
 
+    const prefs = getNotifPrefs()
+
     // Mentions
+    if (prefs.mentions) {
     ;(msgRes.data || []).forEach((m: any) => {
       items.push({
         id: `mention-${m.id}`,
@@ -77,8 +95,10 @@ export function useNotifications(studentId: string, studentName: string, groupId
         read: readIds.includes(`mention-${m.id}`),
       })
     })
+    }
 
     // Announcements
+    if (prefs.announcements) {
     ;(annRes.data || []).forEach((a: any) => {
       items.push({
         id: `ann-${a.id}`,
@@ -89,8 +109,10 @@ export function useNotifications(studentId: string, studentName: string, groupId
         read: readIds.includes(`ann-${a.id}`),
       })
     })
+    }
 
     // Todos
+    if (prefs.todos) {
     ;(todoRes.data || []).forEach((t: any) => {
       items.push({
         id: `todo-${t.id}`,
@@ -101,8 +123,10 @@ export function useNotifications(studentId: string, studentName: string, groupId
         read: readIds.includes(`todo-${t.id}`),
       })
     })
+    }
 
     // Creativity feedback
+    if (prefs.creativity) {
     ;(creativityRes.data || []).forEach((c: any) => {
       items.push({
         id: `creativity-${c.id}`,
@@ -113,12 +137,17 @@ export function useNotifications(studentId: string, studentName: string, groupId
         read: readIds.includes(`creativity-${c.id}`),
       })
     })
+    }
 
     // Sort by date desc
     items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
     setNotifications(items)
     setLoading(false)
+    } catch (err) {
+      console.error('[NOTIFICATIONS] fetchNotifications error:', err)
+      setLoading(false)
+    }
   }, [studentId, studentName, groupIds])
 
   useEffect(() => {
@@ -138,14 +167,17 @@ export function useNotifications(studentId: string, studentName: string, groupId
         const msg = payload.new
         if (msg.content && msg.content.includes(`@${studentName}`)) {
           const readIds: string[] = JSON.parse(localStorage.getItem('notif_read') || '[]')
+          const notifTitle = `${msg.sender_name || 'Quelqu\'un'} vous a mentionné`
+          const notifBody = (msg.content || '').slice(0, 80)
           setNotifications(prev => [{
             id: `mention-${msg.id}`,
             type: 'mention',
-            title: `${msg.sender_name || 'Quelqu\'un'} vous a mentionné`,
-            body: (msg.content || '').slice(0, 80),
+            title: notifTitle,
+            body: notifBody,
             created_at: msg.created_at,
             read: readIds.includes(`mention-${msg.id}`),
           }, ...prev])
+          sendNativeNotification(notifTitle, notifBody)
         }
       })
       .subscribe()
@@ -159,14 +191,17 @@ export function useNotifications(studentId: string, studentName: string, groupId
         filter: `group_id=in.(${groupIds.join(',')})`,
       }, (payload: any) => {
         const ann = payload.new
+        const notifTitle = ann.title || 'Nouvelle annonce'
+        const notifBody = (ann.content || '').slice(0, 80)
         setNotifications(prev => [{
           id: `ann-${ann.id}`,
           type: 'announcement',
-          title: ann.title,
-          body: (ann.content || '').slice(0, 80),
+          title: notifTitle,
+          body: notifBody,
           created_at: ann.created_at,
           read: false,
         }, ...prev])
+        sendNativeNotification(notifTitle, notifBody)
       })
       .subscribe()
 
@@ -177,6 +212,10 @@ export function useNotifications(studentId: string, studentName: string, groupId
   }, [fetchNotifications, groupIds, studentName])
 
   const unreadCount = notifications.filter(n => !n.read).length
+
+  useEffect(() => {
+    updateBadge(unreadCount)
+  }, [unreadCount])
 
   const markAllRead = useCallback(() => {
     const ids = notifications.map(n => n.id)

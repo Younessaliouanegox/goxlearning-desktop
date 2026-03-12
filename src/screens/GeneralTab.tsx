@@ -1,15 +1,19 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import {
   MessageSquare, Copy, Reply, Trash2, Pin, Download,
-  CornerUpRight, Pencil, Check, X, PinOff, Smile,
+  CornerUpRight, Pencil, Check, X, PinOff, Smile, ChevronRight,
 } from 'lucide-react'
 import { useChat } from '../lib/hooks/useChat'
+import { useTypingIndicator } from '../lib/hooks/useTypingIndicator'
+import { useReadReceipts } from '../lib/hooks/useReadReceipts'
+import { usePresence } from '../lib/hooks/usePresence'
 import { supabase } from '../lib/supabase'
 import ChatBubble from '../components/ChatBubble'
 import ChatInput from '../components/ChatInput'
 import ContextMenu, { type ContextMenuItem } from '../components/ContextMenu'
 import Empty from '../components/Empty'
 import Loading from '../components/Loading'
+import ImageLightbox from '../components/ImageLightbox'
 import type { Student, Group, ChatMessage } from '../types'
 import { canModerateChat } from '../lib/roles'
 
@@ -28,6 +32,10 @@ export default function GeneralTab({ group, student, groups = [], searchQuery = 
     messages, loading, sendMessage, editMessage, pinMessage,
     toggleReaction, forwardMessage, deleteMessage,
   } = useChat(group?.id)
+
+  const { typingUsers, startTyping, stopTyping } = useTypingIndicator(group?.id, student.id, student.name)
+  const { markAsRead, isReadByOthers } = useReadReceipts(group?.id, student.id, student.name)
+  const { isOnline } = usePresence(group?.id, student.id, student.name)
 
   const bottomRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
@@ -51,9 +59,16 @@ export default function GeneralTab({ group, student, groups = [], searchQuery = 
   const [editText, setEditText] = useState('')
   const [forwardMsg, setForwardMsg] = useState<ChatMessage | null>(null)
   const [reactionPickerMsgId, setReactionPickerMsgId] = useState<string | null>(null)
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
+  const [dragOver, setDragOver] = useState(false)
+  const [showPinnedPanel, setShowPinnedPanel] = useState(false)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    // Mark last message as read
+    if (messages.length > 0) {
+      markAsRead(messages[messages.length - 1].id)
+    }
   }, [messages])
 
   const isMember = !!student.role
@@ -101,7 +116,8 @@ export default function GeneralTab({ group, student, groups = [], searchQuery = 
       })
     }
 
-    if (mine && m.content) {
+    const isRecent = Date.now() - new Date(m.created_at).getTime() < 15 * 60 * 1000
+    if (mine && m.content && isRecent) {
       items.push({
         label: 'Modifier',
         icon: <Pencil size={14} />,
@@ -194,21 +210,61 @@ export default function GeneralTab({ group, student, groups = [], searchQuery = 
   if (!group) return <Empty icon={MessageSquare} text="Sélectionnez un groupe" sub="Choisissez un groupe dans la barre latérale" />
   if (loading) return <Loading />
 
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); setDragOver(true) }
+  const handleDragLeave = (e: React.DragEvent) => { e.preventDefault(); setDragOver(false) }
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(false)
+    const file = e.dataTransfer.files?.[0]
+    if (file) handleSend('', file)
+  }
+
   return (
-    <div style={styles.wrapper}>
+    <div style={styles.wrapper} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+      {/* Drag overlay */}
+      {dragOver && (
+        <div style={styles.dragOverlay}>
+          <div style={styles.dragBox}>
+            <Download size={32} style={{ color: 'var(--brand)' }} />
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Déposez le fichier ici</div>
+            <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Image, audio ou document</div>
+          </div>
+        </div>
+      )}
       {/* Pinned messages bar */}
       {pinnedMessages.length > 0 && (
-        <div style={styles.pinBar}>
+        <div style={styles.pinBar} onClick={() => setShowPinnedPanel(p => !p)}>
           <Pin size={12} style={{ color: 'var(--warning)', flexShrink: 0 }} />
-          <button
-            style={styles.pinBarText}
-            onClick={() => scrollToMessage(pinnedMessages[pinnedMessages.length - 1].id)}
-          >
+          <div style={styles.pinBarText}>
             <strong>{pinnedMessages.length} message(s) épinglé(s)</strong>
             <span style={{ color: 'var(--text-tertiary)' }}>
               {' — '}{pinnedMessages[pinnedMessages.length - 1].content?.slice(0, 50)}
             </span>
-          </button>
+          </div>
+          <ChevronRight size={14} style={{ color: 'var(--text-tertiary)', transform: showPinnedPanel ? 'rotate(90deg)' : 'rotate(0)', transition: 'transform 0.2s' }} />
+        </div>
+      )}
+
+      {/* Pinned messages panel */}
+      {showPinnedPanel && pinnedMessages.length > 0 && (
+        <div style={styles.pinnedPanel}>
+          {pinnedMessages.map(pm => (
+            <button
+              key={pm.id}
+              style={styles.pinnedItem}
+              onClick={() => { scrollToMessage(pm.id); setShowPinnedPanel(false) }}
+            >
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--brand)', marginBottom: 2 }}>
+                {pm.sender_name || 'Utilisateur'}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-primary)', lineHeight: '16px' }}>
+                {pm.content?.slice(0, 100)}{(pm.content?.length || 0) > 100 ? '...' : ''}
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 2 }}>
+                {new Date(pm.created_at).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+              </div>
+            </button>
+          ))}
         </div>
       )}
 
@@ -255,6 +311,9 @@ export default function GeneralTab({ group, student, groups = [], searchQuery = 
                 reactions={m.reactions}
                 searchQuery={searchQuery}
                 showReactionPicker={reactionPickerMsgId === m.id}
+                readStatus={isMe ? (isReadByOthers(m.id, filteredMessages.map(msg => msg.id)) ? 'read' : 'sent') : undefined}
+                isOnline={!isMe && isOnline(m.sender_type === 'member' ? m.member_id || '' : m.student_id || '')}
+                onImageClick={(src) => setLightboxSrc(src)}
                 onContextMenu={(e) => handleContextMenu(e, m)}
                 onReplyClick={scrollToMessage}
                 onReaction={(emoji) => { toggleReaction(m.id, emoji, student.id); setReactionPickerMsgId(null) }}
@@ -265,16 +324,41 @@ export default function GeneralTab({ group, student, groups = [], searchQuery = 
         <div ref={bottomRef} />
       </div>
 
+      {/* Typing indicator */}
+      {typingUsers.length > 0 && (
+        <div style={styles.typingBar}>
+          <div style={styles.typingDots}>
+            <span style={{ ...styles.typingDot, animationDelay: '0s' }} />
+            <span style={{ ...styles.typingDot, animationDelay: '0.2s' }} />
+            <span style={{ ...styles.typingDot, animationDelay: '0.4s' }} />
+          </div>
+          <span style={styles.typingText}>
+            {typingUsers.length === 1
+              ? `${typingUsers[0].name} est en train d'écrire...`
+              : typingUsers.length === 2
+                ? `${typingUsers[0].name} et ${typingUsers[1].name} sont en train d'écrire...`
+                : `${typingUsers[0].name} et ${typingUsers.length - 1} autres sont en train d'écrire...`
+            }
+          </span>
+        </div>
+      )}
+
       <ChatInput
         onSend={handleSend}
         placeholder="Écrire un message..."
         replyTo={replyTo}
         onCancelReply={() => setReplyTo(null)}
         members={members}
+        onTyping={startTyping}
+        onStopTyping={stopTyping}
       />
 
       {ctx && (
         <ContextMenu x={ctx.x} y={ctx.y} items={getMenuItems(ctx.message)} onClose={() => setCtx(null)} />
+      )}
+
+      {lightboxSrc && (
+        <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
       )}
 
       {/* Forward modal */}
@@ -318,6 +402,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'var(--bg-main)',
     minHeight: 0,
     overflow: 'hidden',
+    position: 'relative' as any,
   },
   pinBar: {
     display: 'flex',
@@ -340,6 +425,25 @@ const styles: Record<string, React.CSSProperties> = {
     whiteSpace: 'nowrap' as any,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
+  },
+  pinnedPanel: {
+    maxHeight: 200,
+    overflowY: 'auto' as any,
+    background: 'var(--bg-card)',
+    borderBottom: '1px solid var(--border-light)',
+    padding: '4px 0',
+  },
+  pinnedItem: {
+    display: 'block',
+    width: '100%',
+    padding: '8px 20px',
+    border: 'none',
+    background: 'transparent',
+    cursor: 'pointer',
+    textAlign: 'left' as any,
+    fontFamily: 'inherit',
+    transition: 'background 0.1s',
+    borderBottom: '1px solid var(--border-light)',
   },
   messageList: {
     flex: 1,
@@ -387,6 +491,57 @@ const styles: Record<string, React.CSSProperties> = {
   editCancelBtn: {
     width: 30, height: 30, borderRadius: 8, border: '1px solid var(--border-light)', background: 'var(--bg-card)',
     color: 'var(--text-tertiary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+
+  /* Drag & drop overlay */
+  dragOverlay: {
+    position: 'absolute' as any,
+    inset: 0,
+    background: 'rgba(59,110,240,.08)',
+    border: '2px dashed var(--brand)',
+    borderRadius: 12,
+    zIndex: 100,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    animation: 'fadeIn 0.15s ease both',
+  },
+  dragBox: {
+    display: 'flex',
+    flexDirection: 'column' as any,
+    alignItems: 'center',
+    gap: 8,
+    padding: '28px 40px',
+    background: 'var(--bg-card)',
+    borderRadius: 16,
+    boxShadow: 'var(--shadow-lg)',
+  },
+
+  /* Typing indicator */
+  typingBar: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '6px 20px',
+    background: 'var(--bg-card)',
+    borderTop: '1px solid var(--border-light)',
+  },
+  typingDots: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 3,
+  },
+  typingDot: {
+    width: 5,
+    height: 5,
+    borderRadius: '50%',
+    background: 'var(--brand)',
+    animation: 'dotPulse 1.2s ease infinite',
+  } as any,
+  typingText: {
+    fontSize: 11,
+    color: 'var(--text-tertiary)',
+    fontWeight: 500,
   },
 
   /* Forward modal */

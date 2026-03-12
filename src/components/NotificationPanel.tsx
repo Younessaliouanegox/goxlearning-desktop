@@ -54,7 +54,7 @@ export default function NotificationPanel({ notifications, onClose, onMarkAllRea
   const read = notifications.filter(n => n.read)
 
   return (
-    <div style={styles.panel} ref={ref}>
+    <div style={styles.panel} ref={ref} className="animate-scale-in">
       {/* Header */}
       <div style={styles.header}>
         <div style={styles.headerTitle}>
@@ -64,11 +64,26 @@ export default function NotificationPanel({ notifications, onClose, onMarkAllRea
         </div>
         <div style={styles.headerActions}>
           {unread.length > 0 && (
-            <button style={styles.markAllBtn} onClick={onMarkAllRead} title="Tout marquer comme lu">
+            <button
+              style={styles.markAllBtn}
+              onClick={onMarkAllRead}
+              title="Tout marquer comme lu"
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--brand-light)'; e.currentTarget.style.color = 'var(--brand)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-muted)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
+              onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.9)' }}
+              onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)' }}
+            >
               <CheckCheck size={14} />
             </button>
           )}
-          <button style={styles.closeBtn} onClick={onClose}>
+          <button
+            style={styles.closeBtn}
+            onClick={onClose}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; e.currentTarget.style.color = 'var(--text-primary)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-tertiary)' }}
+            onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.9)' }}
+            onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)' }}
+          >
             <X size={14} />
           </button>
         </div>
@@ -109,7 +124,12 @@ export default function NotificationPanel({ notifications, onClose, onMarkAllRea
 function NotifItem({ notification, onRead }: { notification: Notification; onRead: () => void }) {
   const c = getColor(notification.type)
   return (
-    <button style={{ ...styles.item, background: notification.read ? 'transparent' : 'var(--bg-muted)' }} onClick={onRead}>
+    <button
+      style={{ ...styles.item, background: notification.read ? 'transparent' : 'var(--bg-muted)' }}
+      onClick={onRead}
+      onMouseEnter={e => { e.currentTarget.style.background = notification.read ? 'var(--bg-hover)' : 'var(--brand-light)' }}
+      onMouseLeave={e => { e.currentTarget.style.background = notification.read ? 'transparent' : 'var(--bg-muted)' }}
+    >
       <div style={{ ...styles.itemIcon, background: c.bg, color: c.color }}>
         {getIcon(notification.type)}
       </div>
@@ -140,7 +160,6 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column' as any,
     overflow: 'hidden',
-    animation: 'ctxIn 0.15s ease',
   },
   header: {
     display: 'flex',
@@ -183,6 +202,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    transition: 'all 0.15s cubic-bezier(.4,0,.2,1)',
   },
   closeBtn: {
     width: 28,
@@ -195,6 +215,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    transition: 'all 0.15s cubic-bezier(.4,0,.2,1)',
   },
   list: {
     flex: 1,
@@ -226,7 +247,7 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     textAlign: 'left' as any,
     fontFamily: 'inherit',
-    transition: 'background 0.1s',
+    transition: 'background 0.15s cubic-bezier(.4,0,.2,1)',
   },
   itemIcon: {
     width: 30,

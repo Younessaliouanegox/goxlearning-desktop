@@ -1,0 +1,68 @@
+{
+  "name": "goxlearning-desktop",
+  "version": "1.0.1",
+  "description": "GoxLearning Student Desktop App",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && tsc -p tsconfig.electron.json && vite build && electron-builder",
+    "build:web": "tsc && vite build",
+    "preview": "vite preview",
+    "electron:dev": "tsc -p tsconfig.electron.json && concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "electron:build:mac": "tsc && tsc -p tsconfig.electron.json && vite build && electron-builder --mac",
+    "electron:build:win": "tsc && tsc -p tsconfig.electron.json && vite build && electron-builder --win",
+    "electron:publish:mac": "tsc && tsc -p tsconfig.electron.json && vite build && electron-builder --mac --publish always",
+    "electron:publish:win": "tsc && tsc -p tsconfig.electron.json && vite build && electron-builder --win --publish always",
+    "electron:publish": "tsc && tsc -p tsconfig.electron.json && vite build && electron-builder --mac --win --publish always"
+  },
+  "build": {
+    "appId": "com.goxlearning.student",
+    "productName": "GoxLearning",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*"
+    ],
+    "publish": {
+      "provider": "github",
+      "owner": "Younessaliouanegox",
+      "repo": "goxlearning-desktop"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "build/icon.icns",
+      "category": "public.app-category.education"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.1",
+    "electron-updater": "^6.8.3",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.0",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5.6.3",
+    "vite": "^6.0.3",
+    "wait-on": "^8.0.1"
+  }
+}

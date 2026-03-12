@@ -1,0 +1,16 @@
+export const colors = {
+  brand: '#1a237e',
+  brandLight: '#e8eaf6',
+  brandDark: '#0d1259',
+  white: '#ffffff',
+  background: '#f5f5f5',
+  card: '#ffffff',
+  text: '#1a1a1a',
+  textSecondary: '#666666',
+  textTertiary: '#999999',
+  border: '#e5e5e5',
+  borderLight: '#f0f0f0',
+  success: '#059669',
+  error: '#dc2626',
+  warning: '#d97706',
+}
